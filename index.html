@@ -47,7 +47,7 @@
   <body>
     <h1>Teachable Machine Image Model</h1>
 
-    <button type="button" onclick="init()">Start Webcam</button>
+    <button type="button" onclick="startWebcam()">Start Webcam</button>
     <button type="button" onclick="stopWebcam()">Stop Webcam</button>
 
     <div id="webcam-container"></div>
@@ -65,35 +65,47 @@
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
     <script>
-      const URL = "./model/"; // path to model folder
+      const URL = "./model/"; // path to your model folder
       let model, webcam, labelContainer, maxPredictions, animationId;
+      const imageContainer = document.getElementById("image-container");
 
-      async function init() {
-        try {
+      // Load model independently
+      async function loadModel() {
+        if (!model) {
           const modelURL = URL + "model.json";
           const metadataURL = URL + "metadata.json";
           model = await tmImage.load(modelURL, metadataURL);
           maxPredictions = model.getTotalClasses();
 
-          // Webcam setup
-          const flip = true;
-          webcam = new tmImage.Webcam(300, 300, flip);
-          await webcam.setup();
-          await webcam.play();
-          animationId = window.requestAnimationFrame(loop);
-
-          document.getElementById("webcam-container").appendChild(webcam.canvas);
           labelContainer = document.getElementById("label-container");
           labelContainer.innerHTML = "";
           for (let i = 0; i < maxPredictions; i++) {
             labelContainer.appendChild(document.createElement("div"));
           }
-        } catch (err) {
-          console.error("Error initializing model:", err);
-          alert("Error initializing model. Check console for details.");
         }
       }
 
+      // Start webcam
+      async function startWebcam() {
+        await loadModel(); // ensure model is loaded
+        const flip = true;
+        webcam = new tmImage.Webcam(300, 300, flip);
+        await webcam.setup();
+        await webcam.play();
+        animationId = window.requestAnimationFrame(loop);
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+      }
+
+      // Stop webcam
+      function stopWebcam() {
+        if (webcam) {
+          webcam.stop();
+          cancelAnimationFrame(animationId);
+          webcam.canvas.remove();
+        }
+      }
+
+      // Webcam loop
       async function loop() {
         webcam.update();
         await predictWebcam();
@@ -105,15 +117,7 @@
         showPredictions(prediction);
       }
 
-      function stopWebcam() {
-        if (webcam) {
-          webcam.stop();
-          cancelAnimationFrame(animationId);
-          webcam.canvas.remove();
-          labelContainer.innerHTML = "";
-        }
-      }
-
+      // Show predictions
       function showPredictions(prediction) {
         for (let i = 0; i < maxPredictions; i++) {
           const prob = prediction[i].probability.toFixed(2);
@@ -127,7 +131,6 @@
       // Drag & drop image handling
       const dropArea = document.getElementById("drop-area");
       const fileElem = document.getElementById("fileElem");
-      const imageContainer = document.getElementById("image-container");
 
       dropArea.addEventListener("dragover", e => {
         e.preventDefault();
@@ -144,11 +147,8 @@
 
       fileElem.addEventListener("change", () => handleFiles(fileElem.files));
 
-      function handleFiles(files) {
-        if (!model) {
-          alert("Model not loaded. Start webcam first.");
-          return;
-        }
+      async function handleFiles(files) {
+        await loadModel(); // ensure model is loaded
         const file = files[0];
         if (!file) return;
 
